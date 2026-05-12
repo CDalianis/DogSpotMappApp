@@ -3,7 +3,7 @@ package com.example.mapstest.controller;
 import com.example.mapstest.model.Location;
 import com.example.mapstest.service.LocationService;
 import org.springframework.web.bind.annotation.*;
-//import lib
+
 import java.util.List;
 
 @RestController
@@ -28,16 +28,12 @@ public class LocationController {
 
     @PutMapping("/{id}")
     public Location updateLocation(@PathVariable Long id, @RequestBody Location location) {
-        return locationService.updateLocation(id, location)
-                .orElseThrow(() -> new IllegalArgumentException("Location not found: " + id));
+        return locationService.updateLocation(id, location);
     }
 
     @DeleteMapping("/{id}")
     public void deleteLocation(@PathVariable Long id) {
-        boolean removed = locationService.deleteLocation(id);
-        if (!removed) {
-            throw new IllegalArgumentException("Location not found: " + id);
-        }
+        locationService.deleteLocation(id);
     }
 
     @PostMapping("/import")
