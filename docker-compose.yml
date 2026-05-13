@@ -1,0 +1,14 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: mapstest
+      POSTGRES_USER: mapstest
+      POSTGRES_PASSWORD: mapstest
+    ports:
+      - "5432:5432"
+    volumes:
+      - mapstest_pgdata:/var/lib/postgresql/data
+
+volumes:
+  mapstest_pgdata:
