@@ -1,33 +1,115 @@
 package com.example.mapstest.service;
 
+import com.example.mapstest.core.exceptions.EntityAlreadyExistsException;
+import com.example.mapstest.core.exceptions.EntityInvalidArgumentException;
+import com.example.mapstest.core.exceptions.EntityNotFoundException;
+import com.example.mapstest.core.exceptions.FileUploadException;
+import com.example.mapstest.core.exceptions.ValidationException;
 import com.example.mapstest.model.Location;
+import com.example.mapstest.repository.LocationRepository;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.validation.BeanPropertyBindingResult;
+import org.springframework.validation.BindingResult;
+import org.springframework.validation.Validator;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Optional;
-import java.util.concurrent.atomic.AtomicLong;
 
 @Service
+@Transactional(readOnly = true)
 public class LocationService {
 
-    private final List<Location> locations = new ArrayList<>();
-    private final AtomicLong idSequence = new AtomicLong(1L);
+    private static final int MAX_PHOTO_PAYLOAD_CHARS = 512 * 1024;
 
-    public LocationService() {
-        addLocation(new Location(null, 37.9838, 23.7275, "Athens Center", null, "PARK", false, true, 5, List.of()));
-        addLocation(new Location(null, 37.9715, 23.7257, "Acropolis", "Busy area, keep dog close", "OTHER", true, false, 4, List.of()));
-        addLocation(new Location(null, 37.9680, 23.7286, "Plaka", "Nice evening walk", "CAFE", false, false, 4, List.of()));
+    private final LocationRepository locationRepository;
+    private final Validator validator;
+
+    public LocationService(LocationRepository locationRepository, Validator validator) {
+        this.locationRepository = locationRepository;
+        this.validator = validator;
     }
 
     public List<Location> getLocations() {
-        return locations;
+        return locationRepository.findAllWithPhotosSorted();
     }
 
+    @Transactional
     public Location addLocation(Location location) {
-        if (location.getId() == null) {
-            location.setId(idSequence.getAndIncrement());
+        applyDefaults(location);
+        validateLocation(location);
+        assertPhotosWithinLimit(location.getPhotos());
+        if (location.getId() != null && locationRepository.existsById(location.getId())) {
+            throw new EntityAlreadyExistsException("LOCATION", "A location with id " + location.getId() + " already exists");
         }
+        location.setId(null);
+        return locationRepository.save(location);
+    }
+
+    @Transactional
+    public Location updateLocation(Long id, Location updated) {
+        Location existing = locationRepository.findById(id)
+                .orElseThrow(() -> new EntityNotFoundException("LOCATION", "Location not found: " + id));
+        applyDefaults(updated);
+        assertPathAndBodyIdMatch(id, updated);
+        validateLocation(updated);
+        assertPhotosWithinLimit(updated.getPhotos());
+        existing.setName(updated.getName());
+        existing.setNotes(updated.getNotes());
+        existing.setLat(updated.getLat());
+        existing.setLng(updated.getLng());
+        existing.setCategory(updated.getCategory());
+        existing.setVisited(updated.getVisited());
+        existing.setFavorite(updated.getFavorite());
+        existing.setRating(updated.getRating());
+        existing.setPhotos(new ArrayList<>(updated.getPhotos() == null ? List.of() : updated.getPhotos()));
+        return locationRepository.save(existing);
+    }
+
+    @Transactional
+    public void deleteLocation(Long id) {
+        if (!locationRepository.existsById(id)) {
+            throw new EntityNotFoundException("LOCATION", "Location not found: " + id);
+        }
+        locationRepository.deleteById(id);
+    }
+
+    @Transactional
+    public void replaceAll(List<Location> imported) {
+        if (imported == null) {
+            locationRepository.deleteAll();
+            return;
+        }
+        List<Location> validated = new ArrayList<>(imported.size());
+        for (Location loc : imported) {
+            Location copy = copyForImport(loc);
+            applyDefaults(copy);
+            validateLocation(copy);
+            assertPhotosWithinLimit(copy.getPhotos());
+            validated.add(copy);
+        }
+        locationRepository.deleteAll();
+        for (Location loc : validated) {
+            loc.setId(null);
+            locationRepository.save(loc);
+        }
+    }
+
+    private static Location copyForImport(Location loc) {
+        return new Location(
+                null,
+                loc.getLat(),
+                loc.getLng(),
+                loc.getName(),
+                loc.getNotes(),
+                loc.getCategory(),
+                loc.getVisited(),
+                loc.getFavorite(),
+                loc.getRating(),
+                loc.getPhotos() == null ? new ArrayList<>() : new ArrayList<>(loc.getPhotos()));
+    }
+
+    private static void applyDefaults(Location location) {
         if (location.getCategory() == null || location.getCategory().isBlank()) {
             location.setCategory("OTHER");
         }
@@ -38,43 +120,32 @@ public class LocationService {
             location.setFavorite(false);
         }
         if (location.getPhotos() == null) {
-            location.setPhotos(List.of());
+            location.setPhotos(new ArrayList<>());
         }
-        locations.add(location);
-        return location;
     }
 
-    public Optional<Location> updateLocation(Long id, Location updated) {
-        return locations.stream()
-                .filter(loc -> loc.getId().equals(id))
-                .findFirst()
-                .map(existing -> {
-                    existing.setName(updated.getName());
-                    existing.setNotes(updated.getNotes());
-                    existing.setLat(updated.getLat());
-                    existing.setLng(updated.getLng());
-                    existing.setCategory(updated.getCategory());
-                    existing.setVisited(updated.getVisited());
-                    existing.setFavorite(updated.getFavorite());
-                    existing.setRating(updated.getRating());
-                    existing.setPhotos(updated.getPhotos() == null ? List.of() : updated.getPhotos());
-                    return existing;
-                });
+    private void validateLocation(Location location) {
+        BindingResult errors = new BeanPropertyBindingResult(location, "location");
+        validator.validate(location, errors);
+        if (errors.hasErrors()) {
+            throw new ValidationException("LOCATION", "Location validation failed", errors);
+        }
     }
 
-    public boolean deleteLocation(Long id) {
-        return locations.removeIf(loc -> loc.getId().equals(id));
+    private static void assertPathAndBodyIdMatch(Long pathId, Location updated) {
+        if (updated.getId() != null && !updated.getId().equals(pathId)) {
+            throw new EntityInvalidArgumentException("LOCATION", "Path id and body id must match");
+        }
     }
 
-    public void replaceAll(List<Location> imported) {
-        locations.clear();
-        idSequence.set(1L);
-        if (imported == null) {
+    private static void assertPhotosWithinLimit(List<String> photos) {
+        if (photos == null) {
             return;
         }
-        for (Location loc : imported) {
-            loc.setId(null);
-            addLocation(loc);
+        for (String photo : photos) {
+            if (photo != null && photo.length() > MAX_PHOTO_PAYLOAD_CHARS) {
+                throw new FileUploadException("LOCATION", "Photo payload exceeds maximum allowed size");
+            }
         }
     }
 }
