@@ -1,5 +1,6 @@
 package com.example.mapstest.model;
 
+import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.persistence.CollectionTable;
 import jakarta.persistence.Column;
 import jakarta.persistence.ElementCollection;
@@ -35,40 +36,52 @@ import java.util.List;
 @AllArgsConstructor
 @EqualsAndHashCode(onlyExplicitlyIncluded = true)
 @ToString
+@Schema(description = "A dog-related spot on the map")
 public class Location {
 
     @EqualsAndHashCode.Include
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Schema(description = "Unique identifier (server-assigned)", accessMode = Schema.AccessMode.READ_ONLY, example = "1")
     private Long id;
 
     @DecimalMin("-90.0")
     @DecimalMax("90.0")
+    @Schema(description = "Latitude", minimum = "-90", maximum = "90", example = "37.9838")
     private double lat;
 
     @DecimalMin("-180.0")
     @DecimalMax("180.0")
+    @Schema(description = "Longitude", minimum = "-180", maximum = "180", example = "23.7275")
     private double lng;
 
     @NotBlank(message = "Name is required")
+    @Schema(description = "Display name", requiredMode = Schema.RequiredMode.REQUIRED, example = "National Garden")
     private String name;
 
     @Column(columnDefinition = "TEXT")
+    @Schema(description = "Optional notes")
     private String notes;
 
     @Pattern(regexp = "PARK|VET|GROOMING|CAFE|WATER|BAGS|OTHER", message = "Unknown category")
+    @Schema(description = "Spot category", allowableValues = {"PARK", "VET", "GROOMING", "CAFE", "WATER", "BAGS", "OTHER"}, example = "PARK")
     private String category;
 
+    @Schema(description = "Whether the spot has been visited", example = "false")
     private Boolean visited;
+
+    @Schema(description = "Whether the spot is marked favorite", example = "false")
     private Boolean favorite;
 
     @Min(value = 1, message = "Rating must be between 1 and 5")
     @Max(value = 5, message = "Rating must be between 1 and 5")
+    @Schema(description = "Rating from 1 to 5", minimum = "1", maximum = "5", example = "4")
     private Integer rating;
 
     @ElementCollection(fetch = FetchType.LAZY)
     @CollectionTable(name = "location_photos", joinColumns = @JoinColumn(name = "location_id"))
     @Column(name = "data_url", columnDefinition = "TEXT")
     @OrderColumn(name = "photo_order")
+    @Schema(description = "Base64 data URLs for photos (max ~512KB each)")
     private List<String> photos = new ArrayList<>();
 }
