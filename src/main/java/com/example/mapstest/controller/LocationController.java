@@ -12,13 +12,17 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 
 import java.util.List;
 
 @RestController
 @RequestMapping("/api/locations")
 @Tag(name = "Locations", description = "CRUD and bulk import/export for dog spot locations")
+@Slf4j
 public class LocationController {
 
     private final LocationService locationService;
@@ -32,13 +36,14 @@ public class LocationController {
     @ApiResponse(responseCode = "200", description = "Locations found",
             content = @Content(array = @ArraySchema(schema = @Schema(implementation = Location.class))))
     public List<Location> getLocations() {
+        log.debug("GET /api/locations");
         return locationService.getLocations();
     }
 
     @PostMapping
     @Operation(summary = "Create a location", description = "Adds a new location. Server assigns id; omit id or send null.")
     @ApiResponses({
-            @ApiResponse(responseCode = "200", description = "Location created",
+            @ApiResponse(responseCode = "201", description = "Location created",
                     content = @Content(schema = @Schema(implementation = Location.class))),
             @ApiResponse(responseCode = "400", description = "Validation failed or invalid argument",
                     content = @Content(schema = @Schema(implementation = ValidationErrorResponseDTO.class))),
@@ -47,8 +52,15 @@ public class LocationController {
             @ApiResponse(responseCode = "500", description = "Photo payload too large or server error",
                     content = @Content(schema = @Schema(implementation = ErrorResponseDTO.class)))
     })
-    public Location addLocation(@RequestBody Location location) {
-        return locationService.addLocation(location);
+    public ResponseEntity<Location> addLocation(@RequestBody Location location) {
+        log.info("POST /api/locations name={}", location.getName());
+        Location created = locationService.addLocation(location);
+        return ResponseEntity
+                .created(ServletUriComponentsBuilder.fromCurrentRequest()
+                        .path("/{id}")
+                        .buildAndExpand(created.getId())
+                        .toUri())
+                .body(created);
     }
 
     @PutMapping("/{id}")
@@ -66,31 +78,37 @@ public class LocationController {
     public Location updateLocation(
             @Parameter(description = "Location id") @PathVariable Long id,
             @RequestBody Location location) {
+        log.info("PUT /api/locations/{}", id);
         return locationService.updateLocation(id, location);
     }
 
     @DeleteMapping("/{id}")
     @Operation(summary = "Delete a location", description = "Removes a location by id.")
     @ApiResponses({
-            @ApiResponse(responseCode = "200", description = "Location deleted"),
+            @ApiResponse(responseCode = "204", description = "Location deleted"),
             @ApiResponse(responseCode = "404", description = "Location not found",
                     content = @Content(schema = @Schema(implementation = ErrorResponseDTO.class)))
     })
-    public void deleteLocation(@Parameter(description = "Location id") @PathVariable Long id) {
+    public ResponseEntity<Void> deleteLocation(@Parameter(description = "Location id") @PathVariable Long id) {
+        log.info("DELETE /api/locations/{}", id);
         locationService.deleteLocation(id);
+        return ResponseEntity.noContent().build();
     }
 
     @PostMapping("/import")
     @Operation(summary = "Replace all locations", description = "Deletes existing locations and imports the provided list.")
     @ApiResponses({
-            @ApiResponse(responseCode = "200", description = "Import completed"),
+            @ApiResponse(responseCode = "204", description = "Import completed"),
             @ApiResponse(responseCode = "400", description = "Validation failed on one or more locations",
                     content = @Content(schema = @Schema(implementation = ValidationErrorResponseDTO.class))),
             @ApiResponse(responseCode = "500", description = "Photo payload too large or server error",
                     content = @Content(schema = @Schema(implementation = ErrorResponseDTO.class)))
     })
-    public void importLocations(@RequestBody List<Location> locations) {
+    public ResponseEntity<Void> importLocations(@RequestBody List<Location> locations) {
+        int count = locations == null ? 0 : locations.size();
+        log.info("POST /api/locations/import count={}", count);
         locationService.replaceAll(locations);
+        return ResponseEntity.noContent().build();
     }
 
     @GetMapping("/export")
@@ -98,6 +116,7 @@ public class LocationController {
     @ApiResponse(responseCode = "200", description = "Locations exported",
             content = @Content(array = @ArraySchema(schema = @Schema(implementation = Location.class))))
     public List<Location> exportLocations() {
+        log.debug("GET /api/locations/export");
         return locationService.getLocations();
     }
 }
