@@ -7,6 +7,7 @@ import com.example.mapstest.core.exceptions.FileUploadException;
 import com.example.mapstest.core.exceptions.ValidationException;
 import com.example.mapstest.model.Location;
 import com.example.mapstest.repository.LocationRepository;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.validation.BeanPropertyBindingResult;
@@ -18,6 +19,7 @@ import java.util.List;
 
 @Service
 @Transactional(readOnly = true)
+@Slf4j
 public class LocationService {
 
     private static final int MAX_PHOTO_PAYLOAD_CHARS = 512 * 1024;
@@ -31,7 +33,9 @@ public class LocationService {
     }
 
     public List<Location> getLocations() {
-        return locationRepository.findAllWithPhotosSorted();
+        List<Location> locations = locationRepository.findAllWithPhotosSorted();
+        log.debug("Fetched {} locations", locations.size());
+        return locations;
     }
 
     @Transactional
@@ -43,7 +47,9 @@ public class LocationService {
             throw new EntityAlreadyExistsException("LOCATION", "A location with id " + location.getId() + " already exists");
         }
         location.setId(null);
-        return locationRepository.save(location);
+        Location saved = locationRepository.save(location);
+        log.info("Created location id={} name={}", saved.getId(), saved.getName());
+        return saved;
     }
 
     @Transactional
@@ -63,7 +69,9 @@ public class LocationService {
         existing.setFavorite(updated.getFavorite());
         existing.setRating(updated.getRating());
         existing.setPhotos(new ArrayList<>(updated.getPhotos() == null ? List.of() : updated.getPhotos()));
-        return locationRepository.save(existing);
+        Location saved = locationRepository.save(existing);
+        log.info("Updated location id={} name={}", saved.getId(), saved.getName());
+        return saved;
     }
 
     @Transactional
@@ -72,12 +80,14 @@ public class LocationService {
             throw new EntityNotFoundException("LOCATION", "Location not found: " + id);
         }
         locationRepository.deleteById(id);
+        log.info("Deleted location id={}", id);
     }
 
     @Transactional
     public void replaceAll(List<Location> imported) {
         if (imported == null) {
             locationRepository.deleteAll();
+            log.info("Import cleared all locations");
             return;
         }
         List<Location> validated = new ArrayList<>(imported.size());
@@ -93,6 +103,7 @@ public class LocationService {
             loc.setId(null);
             locationRepository.save(loc);
         }
+        log.info("Import replaced all locations with {} entries", validated.size());
     }
 
     private static Location copyForImport(Location loc) {
