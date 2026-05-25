@@ -71,15 +71,23 @@ function paws(rating) {
     return ' ' + '🐾'.repeat(Math.min(5, r));
 }
 
+function buildPopupHtml(loc) {
+    var popupText = '<strong>' + (loc.name || 'Unnamed location') + '</strong>' + paws(loc.rating);
+    if (loc.notes && loc.notes.trim() !== '') {
+        popupText += '<br/><span class="popup-note">' + loc.notes + '</span>';
+    }
+    if (loc.photos && loc.photos.length > 0) {
+        popupText += '<br/><img class="popup-photo" src="' + loc.photos[0] + '" />';
+    }
+    return popupText;
+}
+
 function markerForLocation(loc, popupHtml) {
     var emoji = categoryEmoji(loc.category);
     var fav = loc.favorite ? '⭐' : '';
     var icon = L.divIcon({
         className: 'dog-spot-icon',
-        html: '<div style="width:28px;height:28px;border-radius:999px;display:flex;align-items:center;justify-content:center;' +
-            'background:linear-gradient(135deg, rgba(245,158,11,0.92), rgba(96,165,80,0.92));' +
-            'border:1px solid rgba(15,23,42,0.65);box-shadow:0 10px 22px rgba(0,0,0,0.45);font-size:14px;">' +
-            emoji + fav + '</div>',
+        html: '<div class="dog-spot-icon-inner">' + emoji + fav + '</div>',
         iconSize: [28, 28],
         iconAnchor: [14, 28],
         popupAnchor: [0, -28]
@@ -126,17 +134,12 @@ function addLocationRow(loc) {
 
     // layout: name/notes on left, delete on right
     var left = document.createElement('div');
-    left.style.flex = '1';
+    left.className = 'location-main';
     left.appendChild(nameEl);
     left.appendChild(coordsEl);
 
     var routePick = document.createElement('label');
-    routePick.style.display = 'inline-flex';
-    routePick.style.alignItems = 'center';
-    routePick.style.gap = '6px';
-    routePick.style.marginRight = '8px';
-    routePick.style.fontSize = '11px';
-    routePick.style.color = '#e5e7eb';
+    routePick.className = 'route-pick';
 
     var routeCb = document.createElement('input');
     routeCb.type = 'checkbox';
@@ -162,18 +165,10 @@ function addLocationRow(loc) {
 
     var actions = document.createElement('button');
     actions.textContent = 'Delete';
-    actions.style.marginLeft = '8px';
-    actions.style.padding = '2px 8px';
-    actions.style.fontSize = '11px';
-    actions.style.borderRadius = '999px';
-    actions.style.border = '1px solid rgba(148,163,184,0.6)';
-    actions.style.background = 'transparent';
-    actions.style.color = '#f97373';
-    actions.style.cursor = 'pointer';
+    actions.className = 'location-delete-btn';
 
     var container = document.createElement('div');
-    container.style.display = 'flex';
-    container.style.alignItems = 'center';
+    container.className = 'location-content-row';
     container.appendChild(routePick);
     container.appendChild(left);
     container.appendChild(actions);
@@ -181,7 +176,6 @@ function addLocationRow(loc) {
     row.appendChild(container);
 
     // focus + open editor drawer on click (left side)
-    left.style.cursor = 'pointer';
     left.title = 'Click to focus & edit this location';
     left.addEventListener('click', function () {
         if (typeof loc.id === 'undefined' || loc.id === null) {
@@ -291,16 +285,7 @@ fetch('/api/locations')
         allLocations = data;
 
         allLocations.forEach(function (loc) {
-            var popupText = '<strong>' + (loc.name || 'Unnamed location') + '</strong>' + paws(loc.rating);
-            if (loc.notes && loc.notes.trim() !== '') {
-                popupText += '<br/><span style="font-size: 12px; color: #6b7280;">' +
-                    loc.notes +
-                    '</span>';
-            }
-            if (loc.photos && loc.photos.length > 0) {
-                popupText += '<br/><img src="' + loc.photos[0] + '" style="margin-top:6px; width: 140px; height: 90px; object-fit: cover; border-radius: 10px; border: 1px solid rgba(148,163,184,0.35);" />';
-            }
-            var marker = markerForLocation(loc, popupText);
+            var marker = markerForLocation(loc, buildPopupHtml(loc));
             if (typeof loc.id !== 'undefined' && loc.id !== null) {
                 markersById[loc.id] = marker;
             }
@@ -351,13 +336,7 @@ map.on('click', function (e) {
             return response.json();
         })
         .then(function (saved) {
-            var popupText = '<strong>' + (saved.name || 'Unnamed location') + '</strong>' + paws(saved.rating);
-            if (saved.notes && saved.notes.trim() !== '') {
-                popupText += '<br/><span style="font-size: 12px; color: #6b7280;">' +
-                    saved.notes +
-                    '</span>';
-            }
-            var marker = markerForLocation(saved, popupText);
+            var marker = markerForLocation(saved, buildPopupHtml(saved));
             if (typeof saved.id !== 'undefined' && saved.id !== null) {
                 markersById[saved.id] = marker;
             }
@@ -494,14 +473,7 @@ if (drawerSaveBtn) {
                 // recreate marker to update icon/popup
                 var oldMarker = markersById[saved.id];
                 if (oldMarker) map.removeLayer(oldMarker);
-                var popupText = '<strong>' + (saved.name || 'Unnamed location') + '</strong>' + paws(saved.rating);
-                if (saved.notes && saved.notes.trim() !== '') {
-                    popupText += '<br/><span style="font-size: 12px; color: #6b7280;">' + saved.notes + '</span>';
-                }
-                if (saved.photos && saved.photos.length > 0) {
-                    popupText += '<br/><img src="' + saved.photos[0] + '" style="margin-top:6px; width: 140px; height: 90px; object-fit: cover; border-radius: 10px; border: 1px solid rgba(148,163,184,0.35);" />';
-                }
-                markersById[saved.id] = markerForLocation(saved, popupText);
+                markersById[saved.id] = markerForLocation(saved, buildPopupHtml(saved));
 
                 renderList();
                 openDrawerForLocation(saved.id);
