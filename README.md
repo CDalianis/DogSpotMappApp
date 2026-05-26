@@ -15,6 +15,7 @@ A full-stack web application for discovering, saving, and organizing dog-friendl
 - [Configuration](#configuration)
 - [API Reference](#api-reference)
 - [Data Model](#data-model)
+- [Database Schema](#database-schema)
 - [Error Handling](#error-handling)
 - [Logging](#logging)
 - [Project Structure](#project-structure)
@@ -204,6 +205,31 @@ Expected response: `HTTP/1.1 204 No Content`.
 | `photos` | List of String | Base64 data URLs; max ~512 KB each |
 
 Photos are stored in a separate collection table (`location_photos`) with preserved order.
+
+## Database Schema
+
+```mermaid
+erDiagram
+    LOCATIONS ||--o{ LOCATION_PHOTOS : "stores"
+    LOCATIONS {
+        bigint id PK
+        double lat
+        double lng
+        string name
+        text notes
+        string category
+        boolean visited
+        boolean favorite
+        int rating
+    }
+    LOCATION_PHOTOS {
+        bigint location_id FK
+        int photo_order
+        text data_url
+    }
+```
+
+This reflects the JPA mapping in `Location`: the main entity is stored in `locations`, while photo data is stored in the `location_photos` collection table and linked back with `location_id`.
 
 ## Error Handling
 
