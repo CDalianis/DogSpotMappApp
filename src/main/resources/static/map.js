@@ -19,6 +19,7 @@ var importJsonInput = document.getElementById('import-json');
 var drawRouteBtn = document.getElementById('draw-route');
 var clearRouteBtn = document.getElementById('clear-route');
 var routeInfoEl = document.getElementById('route-info');
+var themeToggleBtn = document.getElementById('theme-toggle');
 
 var drawerEl = document.getElementById('edit-drawer');
 var drawerCloseBtn = document.getElementById('drawer-close');
@@ -40,6 +41,25 @@ var selectedLocationId = null;
 var userLatLng = null;
 var routeSelectedIds = [];
 var routeLine = null;
+
+function getTheme() {
+    return document.documentElement.getAttribute('data-theme') || 'dark';
+}
+
+function setTheme(theme) {
+    document.documentElement.setAttribute('data-theme', theme);
+    localStorage.setItem('theme', theme);
+    updateThemeToggleLabel();
+}
+
+function updateThemeToggleLabel() {
+    if (!themeToggleBtn) {
+        return;
+    }
+    var isDark = getTheme() === 'dark';
+    themeToggleBtn.textContent = isDark ? 'Light mode' : 'Dark mode';
+    themeToggleBtn.setAttribute('aria-label', isDark ? 'Switch to light mode' : 'Switch to dark mode');
+}
 
 function haversineKm(a, b) {
     var R = 6371;
@@ -582,6 +602,14 @@ if (clearRouteBtn) {
         renderList();
     });
 }
+
+if (themeToggleBtn) {
+    themeToggleBtn.addEventListener('click', function () {
+        setTheme(getTheme() === 'dark' ? 'light' : 'dark');
+    });
+}
+
+updateThemeToggleLabel();
 
 if (exportJsonBtn) {
     exportJsonBtn.addEventListener('click', function () {
